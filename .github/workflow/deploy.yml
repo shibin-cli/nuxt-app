@@ -1,0 +1,44 @@
+name: Build and Deploy
+on:
+  push:
+    tags:
+      - 'v*'
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # 下载代码
+      - name: Checkout 🛎️
+        uses: actions/checkout@v2.3.1
+        with:
+          persist-credentials: false
+      # 打包构建
+      - name: Install and Build 🔧 
+        run: |
+          npm install
+          npm run build
+          tar -zcvf release.tgz .nuxt components layouts pages plugins static .nuxt.config.js .package.json .pagkage-lock.json pm2.config.json
+      # 发布Release
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false 
+      - name: Deploy 🚀
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.KEY }}
+          port: ${{ secrets.PORT }}
+          script: |
+            cd /home/nuxt-app
+            wget https://github.com/shibin-cli/nuxt-app/release/latest/download/release.tgz -O release.tgz
+            tar zxvf release.tgz
+            npm install --production
+            pm2 reload pm2.config.json
